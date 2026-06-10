@@ -4,8 +4,8 @@ import 'package:provider/provider.dart';
 
 import 'core/api_client.dart';
 import 'core/theme.dart';
+import 'data/auth_repository.dart';
 import 'data/booking_repository.dart';
-import 'data/user_repository.dart';
 import 'data/venue_repository.dart';
 import 'providers/bookings_provider.dart';
 import 'providers/session_provider.dart';
@@ -16,13 +16,13 @@ void main() {
   // Composition root: build the single ApiClient and repositories once, then
   // inject providers above the widget tree. Screens never construct these.
   final api = ApiClient();
-  final userRepo = UserRepository(api);
+  final authRepo = AuthRepository(api);
   final venueRepo = VenueRepository(api);
   final bookingRepo = BookingRepository(api);
 
   runApp(QuickSlotApp(
     api: api,
-    userRepo: userRepo,
+    authRepo: authRepo,
     venueRepo: venueRepo,
     bookingRepo: bookingRepo,
   ));
@@ -32,13 +32,13 @@ class QuickSlotApp extends StatefulWidget {
   const QuickSlotApp({
     super.key,
     required this.api,
-    required this.userRepo,
+    required this.authRepo,
     required this.venueRepo,
     required this.bookingRepo,
   });
 
   final ApiClient api;
-  final UserRepository userRepo;
+  final AuthRepository authRepo;
   final VenueRepository venueRepo;
   final BookingRepository bookingRepo;
 
@@ -47,7 +47,7 @@ class QuickSlotApp extends StatefulWidget {
 }
 
 class _QuickSlotAppState extends State<QuickSlotApp> {
-  late final SessionProvider _session = SessionProvider(widget.api, widget.userRepo);
+  late final SessionProvider _session = SessionProvider(widget.api, widget.authRepo);
   late final GoRouter _router = createRouter(_session);
 
   @override

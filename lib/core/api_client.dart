@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import 'config.dart';
@@ -30,18 +31,48 @@ class ApiClient {
         queryParameters: query?.map((k, v) => MapEntry(k, '$v')),
       );
 
-  Future<dynamic> get(String path, {Map<String, dynamic>? query}) =>
-      _send(() => _client.get(_uri(path, query), headers: _headers));
+  Future<dynamic> get(String path, {Map<String, dynamic>? query}) {
+    final uri = _uri(path, query);
+    return _send('GET', uri, () => _client.get(uri, headers: _headers));
+  }
 
-  Future<dynamic> post(String path, {Map<String, dynamic>? body}) =>
-      _send(() => _client.post(_uri(path), headers: _headers, body: jsonEncode(body ?? {})));
+  Future<dynamic> post(String path, {Map<String, dynamic>? body}) {
+    final uri = _uri(path);
+    final encoded = jsonEncode(body ?? {});
+    return _send(
+      'POST',
+      uri,
+      () => _client.post(uri, headers: _headers, body: encoded),
+      body: encoded,
+    );
+  }
 
-  Future<dynamic> delete(String path) =>
-      _send(() => _client.delete(_uri(path), headers: _headers));
+  Future<dynamic> patch(String path, {Map<String, dynamic>? body}) {
+    final uri = _uri(path);
+    final encoded = jsonEncode(body ?? {});
+    return _send(
+      'PATCH',
+      uri,
+      () => _client.patch(uri, headers: _headers, body: encoded),
+      body: encoded,
+    );
+  }
+
+  Future<dynamic> delete(String path) {
+    final uri = _uri(path);
+    return _send('DELETE', uri, () => _client.delete(uri, headers: _headers));
+  }
 
   /// Executes the request, maps transport errors to [NetworkFailure] and
   /// HTTP error statuses to typed failures. 204 returns null.
-  Future<dynamic> _send(Future<http.Response> Function() request) async {
+  Future<dynamic> _send(
+    String method,
+    Uri uri,
+    Future<http.Response> Function() request, {
+    String? body,
+  }) async {
+    _logRequest(method, uri, body: body);
+
     http.Response res;
     try {
       res = await request().timeout(_timeout);
@@ -50,6 +81,8 @@ class ApiClient {
     } catch (_) {
       throw const NetworkFailure();
     }
+
+    _logResponse(method, uri, res);
 
     if (res.statusCode == 204 || res.body.isEmpty) return null;
 
@@ -72,6 +105,26 @@ class ApiClient {
       return jsonDecode(body);
     } catch (_) {
       return null;
+    }
+  }
+
+  void _logRequest(String method, Uri uri, {String? body}) {
+    if (!kDebugMode) return;
+    final buffer = StringBuffer('→ $method $uri');
+    if (_headers.isNotEmpty) {
+      buffer.write('\n  headers: $_headers');
+    }
+    if (body != null && body.isNotEmpty) {
+      buffer.write('\n  body: $body');
+    }
+    debugPrint(buffer.toString());
+  }
+
+  void _logResponse(String method, Uri uri, http.Response res) {
+    if (!kDebugMode) return;
+    debugPrint('← $method $uri [${res.statusCode}]');
+    if (res.body.isNotEmpty) {
+      debugPrint('  response: ${res.body}');
     }
   }
 

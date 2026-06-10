@@ -1,13 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/session_provider.dart';
 import '../providers/view_state.dart';
-import '../widgets/state_views.dart';
 
-/// Simple "login": pick one of the seeded users. The chosen id becomes the
-/// X-User-Id for every request.
+/// Step 1 of login: enter a 10-digit mobile number and request an OTP.
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -16,87 +15,112 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final _mobileController = TextEditingController();
+
   @override
-  void initState() {
-    super.initState();
-    // Load users once after first frame (can't call provider in initState body
-    // synchronously without context being ready for notifications).
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<SessionProvider>().loadUsers();
-    });
+  void dispose() {
+    _mobileController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _requestOtp() async {
+    if (!_formKey.currentState!.validate()) return;
+    final session = context.read<SessionProvider>();
+    final ok = await session.requestOtp(_mobileController.text.trim());
+    if (!mounted) return;
+    if (ok) {
+      context.push('/otp');
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(session.errorMessage ?? 'Could not send OTP')),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final session = context.watch<SessionProvider>();
+    final loading = session.requestState == ViewState.loading;
+    final scheme = Theme.of(context).colorScheme;
 
     return Scaffold(
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const SizedBox(height: 32),
-              Icon(Icons.sports_tennis_rounded,
-                  size: 64, color: Theme.of(context).colorScheme.primary),
-              const SizedBox(height: 16),
-              Text('QuickSlot',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      )),
-              const SizedBox(height: 4),
-              Text('Book badminton courts & turf grounds',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      )),
-              const SizedBox(height: 32),
-              Text('Continue as', style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 12),
-              Expanded(child: _buildBody(session)),
-            ],
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Icon(
+                    Icons.sports_tennis_rounded,
+                    size: 64,
+                    color: scheme.primary,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'QuickSlot',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Book badminton courts & turf grounds',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 40),
+                  Text(
+                    'Log in with your mobile',
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _mobileController,
+                    keyboardType: TextInputType.phone,
+                    maxLength: 10,
+                    enabled: !loading,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    decoration: const InputDecoration(
+                      labelText: 'Mobile number',
+                      prefixText: '+91  ',
+                      border: OutlineInputBorder(),
+                      counterText: '',
+                    ),
+                    validator: (v) {
+                      final value = (v ?? '').trim();
+                      if (value.length != 10) {
+                        return 'Enter a valid 10-digit mobile number';
+                      }
+                      return null;
+                    },
+                    onFieldSubmitted: (_) => loading ? null : _requestOtp(),
+                  ),
+                  const SizedBox(height: 20),
+                  FilledButton(
+                    onPressed: loading ? null : _requestOtp,
+                    child: loading
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text('Send OTP'),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+              ),
+            ),
           ),
         ),
       ),
     );
-  }
-
-  Widget _buildBody(SessionProvider session) {
-    switch (session.state) {
-      case ViewState.loading:
-      case ViewState.idle:
-        return const LoadingView(label: 'Loading users…');
-      case ViewState.error:
-        return ErrorView(
-          message: session.errorMessage ?? 'Could not load users',
-          onRetry: session.loadUsers,
-        );
-      case ViewState.empty:
-        return EmptyView(
-          message: 'No users available',
-          action: OutlinedButton(onPressed: session.loadUsers, child: const Text('Reload')),
-        );
-      case ViewState.success:
-        return ListView.separated(
-          itemCount: session.users.length,
-          separatorBuilder: (_, _) => const SizedBox(height: 12),
-          itemBuilder: (context, i) {
-            final user = session.users[i];
-            return Card(
-              child: ListTile(
-                leading: CircleAvatar(child: Text(user.name[0])),
-                title: Text(user.name),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () {
-                  session.login(user);
-                  context.go('/venues');
-                },
-              ),
-            );
-          },
-        );
-    }
   }
 }

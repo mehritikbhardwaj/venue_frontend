@@ -41,12 +41,22 @@ construction.
 lib/
   core/      api_client, config, theme, failure
   models/    User, Venue, Slot, Booking (immutable, fromJson)
-  data/      VenueRepository, BookingRepository, UserRepository
+  data/      AuthRepository, VenueRepository, BookingRepository
   providers/ Session, Venues, Slots (+ polling), Bookings  — all ChangeNotifier
-  screens/   login (user-select), venues, venue_detail (grid), my_bookings
+  screens/   login (mobile), otp, complete_profile, venues, venue_detail, my_bookings
   widgets/   LoadingView / ErrorView / EmptyView, SlotTile
   router.dart  go_router config
 ```
+
+### Login: mobile + OTP
+
+Three-step flow guarded by go_router redirects:
+1. **Mobile** → `POST /auth/request-otp`; backend find-or-creates the user and
+   returns a 6-digit OTP in the response (demo — no SMS).
+2. **OTP** → the returned OTP is shown/pre-filled; `POST /auth/verify-otp`
+   authenticates and the user id becomes the `X-User-Id` for all later calls.
+3. **Complete profile** (new users only) → `PATCH /users/:id { name }` attaches a
+   display name to the id created in step 1. Returning users skip straight to venues.
 
 ### Why Provider (defense)
 
