@@ -13,6 +13,7 @@ import 'providers/venues_provider.dart';
 import 'router.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
   // Composition root: build the single ApiClient and repositories once, then
   // inject providers above the widget tree. Screens never construct these.
   final api = ApiClient();
@@ -49,6 +50,13 @@ class QuickSlotApp extends StatefulWidget {
 class _QuickSlotAppState extends State<QuickSlotApp> {
   late final SessionProvider _session = SessionProvider(widget.api, widget.authRepo);
   late final GoRouter _router = createRouter(_session);
+
+  @override
+  void initState() {
+    super.initState();
+    // Kick off session restore early; the splash awaits the same future.
+    _session.ensureRestored();
+  }
 
   @override
   Widget build(BuildContext context) {

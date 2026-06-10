@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../core/theme.dart';
+
 /// Centered loading spinner. Used wherever a provider is in ViewState.loading.
 class LoadingView extends StatelessWidget {
   const LoadingView({super.key, this.label});
@@ -11,10 +13,13 @@ class LoadingView extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const CircularProgressIndicator(),
+          const CircularProgressIndicator(color: AppTheme.brand),
           if (label != null) ...[
-            const SizedBox(height: 12),
-            Text(label!, style: Theme.of(context).textTheme.bodyMedium),
+            const SizedBox(height: 16),
+            Text(
+              label!,
+              style: const TextStyle(color: AppTheme.inkMuted, fontWeight: FontWeight.w600),
+            ),
           ],
         ],
       ),
@@ -30,27 +35,35 @@ class ErrorView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.cloud_off_rounded, size: 48, color: scheme.error),
-            const SizedBox(height: 12),
-            Text(message, textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodyLarge),
-            if (onRetry != null) ...[
-              const SizedBox(height: 16),
-              OutlinedButton.icon(
-                onPressed: onRetry,
-                icon: const Icon(Icons.refresh),
-                label: const Text('Retry'),
-              ),
-            ],
-          ],
+    // ListView so it still works as a RefreshIndicator child (scrollable).
+    return ListView(
+      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 80),
+      children: [
+        _IconBubble(
+          icon: Icons.cloud_off_rounded,
+          color: AppTheme.danger,
         ),
-      ),
+        const SizedBox(height: 18),
+        Text(
+          message,
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: AppTheme.ink),
+        ),
+        if (onRetry != null) ...[
+          const SizedBox(height: 20),
+          Center(
+            child: OutlinedButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Retry'),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size(140, 48),
+                fixedSize: const Size(160, 48),
+              ),
+            ),
+          ),
+        ],
+      ],
     );
   }
 }
@@ -64,19 +77,39 @@ class EmptyView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 48, color: scheme.outline),
-            const SizedBox(height: 12),
-            Text(message, textAlign: TextAlign.center, style: Theme.of(context).textTheme.bodyLarge),
-            if (action != null) ...[const SizedBox(height: 16), action!],
-          ],
+    return ListView(
+      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 80),
+      children: [
+        _IconBubble(icon: icon, color: AppTheme.brand),
+        const SizedBox(height: 18),
+        Text(
+          message,
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: AppTheme.ink, height: 1.4),
         ),
+        if (action != null) ...[const SizedBox(height: 20), Center(child: action!)],
+      ],
+    );
+  }
+}
+
+/// Soft rounded bubble holding a state icon.
+class _IconBubble extends StatelessWidget {
+  const _IconBubble({required this.icon, required this.color});
+  final IconData icon;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Container(
+        width: 88,
+        height: 88,
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.12),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon, size: 42, color: color),
       ),
     );
   }

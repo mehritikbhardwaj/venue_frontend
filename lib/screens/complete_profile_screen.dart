@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../providers/session_provider.dart';
 import '../providers/view_state.dart';
+import '../widgets/brand.dart';
 
 /// Step 3 (new users only): set a display name, which PATCHes /users/:id
 /// against the id created during OTP request.
@@ -44,42 +45,73 @@ class _CompleteProfileScreenState extends State<CompleteProfileScreen> {
     final loading = session.profileState == ViewState.loading;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Complete your profile'), automaticallyImplyLeading: false),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Form(
-            key: _formKey,
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const GradientHeader(
+            padding: EdgeInsets.fromLTRB(24, 24, 24, 36),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Welcome! What should we call you?',
-                    style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _nameController,
-                  textCapitalization: TextCapitalization.words,
-                  enabled: !loading,
-                  decoration: const InputDecoration(
-                    labelText: 'Your name',
-                    border: OutlineInputBorder(),
+                Text('🎉', style: TextStyle(fontSize: 40)),
+                SizedBox(height: 12),
+                Text(
+                  "You're in!",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 28,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.4,
                   ),
-                  validator: (v) =>
-                      (v ?? '').trim().isEmpty ? 'Please enter your name' : null,
-                  onFieldSubmitted: (_) => loading ? null : _save(),
                 ),
-                const SizedBox(height: 20),
-                FilledButton(
-                  onPressed: loading ? null : _save,
-                  child: loading
-                      ? const SizedBox(
-                          height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                      : const Text('Continue'),
+                SizedBox(height: 4),
+                Text(
+                  'Just one last thing before you start booking.',
+                  style: TextStyle(color: Colors.white70, fontSize: 15),
                 ),
               ],
             ),
           ),
-        ),
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text('What should we call you?',
+                        style: Theme.of(context).textTheme.titleLarge),
+                    const SizedBox(height: 16),
+                    TextFormField(
+                      controller: _nameController,
+                      textCapitalization: TextCapitalization.words,
+                      enabled: !loading,
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                      decoration: const InputDecoration(
+                        labelText: 'Your name',
+                        prefixIcon: Icon(Icons.person_rounded),
+                      ),
+                      validator: (v) =>
+                          (v ?? '').trim().isEmpty ? 'Please enter your name' : null,
+                      onFieldSubmitted: (_) => loading ? null : _save(),
+                    ),
+                    const SizedBox(height: 20),
+                    FilledButton(
+                      onPressed: loading ? null : _save,
+                      child: loading
+                          ? const SizedBox(
+                              height: 22,
+                              width: 22,
+                              child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white))
+                          : const Text('Continue'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

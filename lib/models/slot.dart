@@ -22,6 +22,11 @@ class Slot {
   bool get isAvailable => status == 'available';
   bool get isBooked => status == 'booked';
 
+  /// Whether this slot's start time has already passed (so it can't be booked).
+  /// Derived from the slot's own date + hour against the current time.
+  bool get isPast =>
+      DateTime.parse(date).add(Duration(hours: startHour)).isBefore(DateTime.now());
+
   /// "06:00 – 07:00"
   String get label => '$startTime – $endTime';
 
