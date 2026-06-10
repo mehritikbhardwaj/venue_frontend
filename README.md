@@ -1,108 +1,124 @@
-# QuickSlot — Flutter App
+# QuickSlot (Flutter app)
 
-A mini app for booking sports slots (badminton courts / turf grounds). Browse
-venues, view hourly slots for a date, and book — with the guarantee that a slot
-can never be double-booked.
+QuickSlot lets you book sports slots (badminton courts and turf grounds). You log
+in with your mobile number, browse venues, pick a date, see which hourly slots are
+free, and book one. The core rule the whole thing is built around: the same slot
+can't be booked twice.
 
-- 🎥 **Demo video:** https://drive.google.com/file/d/1XfqAvtvzvQH9DuancTwhB0CpkkxDD1jU/view?usp=drive_link
-- **State management:** Provider (`ChangeNotifier`)
-- **Navigation:** go_router
-- **Backend:** Node + Express + Postgres, live at `https://venuebackend.vercel.app`
-  ([server repo](https://github.com/mehritikbhardwaj/venue_backend))
+Demo video: https://drive.google.com/file/d/1XfqAvtvzvQH9DuancTwhB0CpkkxDD1jU/view?usp=drive_link
 
-## Setup
+State management is Provider, navigation is go_router. The backend (Node + Express
++ Postgres) is deployed at https://venuebackend.vercel.app and its code lives at
+https://github.com/mehritikbhardwaj/venue_backend.
+
+## Running it
 
 ```bash
 flutter pub get
-flutter run            # uses the deployed backend by default — works on any device
+flutter run
 ```
 
-Point at a local backend instead:
+By default the app talks to the deployed backend, so it works on a real phone or a
+simulator without any extra setup. To run against a local backend instead, pass the
+base URL:
 
 ```bash
-flutter run --dart-define=API_BASE_URL=http://localhost:3000      # iOS simulator
-flutter run --dart-define=API_BASE_URL=http://10.0.2.2:3000       # Android emulator
+# iOS simulator
+flutter run --dart-define=API_BASE_URL=http://localhost:3000
+# Android emulator
+flutter run --dart-define=API_BASE_URL=http://10.0.2.2:3000
 ```
 
-Run the tests: `flutter test`.
+Tests: `flutter test`.
 
-## Architecture (one paragraph)
+## How the code is organised
 
-Strictly layered, one direction of dependency:
-**UI → providers → repositories → ApiClient → backend.** Widgets are presentation
-only — they read state from providers and fire actions; there is no HTTP, JSON, or
-business logic inside any widget. `ApiClient` is the single HTTP wrapper (injects
-the `X-User-Id` header, maps transport/status errors to a typed `Failure`).
-Repositories turn API calls into models. Providers (`ChangeNotifier`) hold an
-explicit `ViewState { idle, loading, success, empty, error }` that every screen
-switches on, so loading / error / empty states are handled everywhere by
-construction.
+The dependency direction is one way: UI talks to providers, providers talk to
+repositories, repositories talk to the ApiClient, and the ApiClient talks to the
+backend. Nothing skips a layer and widgets never make HTTP calls or parse JSON.
 
 ```
 lib/
-  core/      api_client, config, theme, failure
-  models/    User, Venue, Slot, Booking (immutable, fromJson)
+  core/      ApiClient (the one http wrapper), config, theme, failure, session_store
+  models/    User, Venue, Slot, Booking
   data/      AuthRepository, VenueRepository, BookingRepository
-  providers/ Session, Venues, Slots (+ polling), Bookings  — all ChangeNotifier
-  screens/   login (mobile), otp, complete_profile, venues, venue_detail, my_bookings
-  widgets/   LoadingView / ErrorView / EmptyView, SlotTile
-  router.dart  go_router config
+  providers/ Session, Venues, Slots, Bookings  (all ChangeNotifier)
+  screens/   splash, login, complete_profile, venues, venue_detail, my_bookings
+  widgets/   state views, slot tile, brand bits, OTP sheet
+  router.dart
 ```
 
-### Login: mobile + OTP
+A few specifics worth calling out:
 
-Three-step flow guarded by go_router redirects:
-1. **Mobile** → `POST /auth/request-otp`; backend find-or-creates the user and
-   returns a 6-digit OTP in the response (demo — no SMS).
-2. **OTP** → the returned OTP is shown/pre-filled; `POST /auth/verify-otp`
-   authenticates and the user id becomes the `X-User-Id` for all later calls.
-3. **Complete profile** (new users only) → `PATCH /users/:id { name }` attaches a
-   display name to the id created in step 1. Returning users skip straight to venues.
+- `ApiClient` is the only thing that knows the base URL. It attaches the
+  `X-User-Id` header and turns HTTP/transport errors into a typed `Failure`
+  (`SlotTakenFailure`, `ApiFailure`, `NetworkFailure`) so the rest of the app
+  never sees a raw `http.Response`.
+- Every provider exposes a `ViewState` (idle / loading / success / empty / error).
+  Each screen switches on it, which is why loading, error and empty states are
+  handled the same way everywhere.
+- The session (id, name, mobile) is saved with SharedPreferences, so you stay
+  logged in across restarts. The splash screen restores it and decides where to go.
 
-### Why Provider (defense)
+## Login (mobile + OTP)
 
-Small, explicit, no codegen, no magic — easy to explain line-by-line. Each screen
-maps to one provider; `notifyListeners()` is the only redraw trigger. The
-`ViewState` enum makes the loading/error/empty/content contract uniform and
-testable. For an app this size, Bloc/Riverpod would add ceremony without benefit.
+1. Enter a 10-digit mobile number. The app calls `POST /auth/request-otp`; the
+   backend creates the user if it's new and returns a 6-digit OTP in the response.
+   There's no real SMS provider, so for the demo the OTP comes back in the API and
+   is shown on the verify sheet.
+2. Enter the OTP. `POST /auth/verify-otp` checks it and, on success, the user id is
+   set as `X-User-Id` for everything that follows.
+3. If it's a brand new user, they're asked for their name once, which is saved with
+   `PATCH /users/:id`. Returning users skip straight to the venue list.
 
-### Double-booking, handled gracefully
+## How double-booking is handled
 
-The backend enforces single-winner at the DB (partial unique index). On the
-client, a `POST /bookings` that returns **409** is mapped to `SlotTakenFailure`;
-the booking flow catches it, shows a clear "that slot was just booked by someone
-else" message, and **refreshes the grid** so the slot immediately shows as booked.
-The venue-detail grid also **polls every 4s**, so a slot booked on another device
-flips to "booked" without a restart (bonus: live updates).
+The guarantee is enforced in the database with a partial unique index, so only one
+booking can win for a given (venue, date, hour). On the app side, if `POST /bookings`
+comes back as 409 the repository throws `SlotTakenFailure`. The booking flow catches
+that, tells the user the slot was just taken, and reloads the grid so it immediately
+shows as booked. The grid also re-fetches every few seconds, so if someone books a
+slot on another phone it flips to "booked" on yours without a restart.
 
-## Bonus attempted
+## Why Provider
 
-- **Live slot updates** via polling (slot flips to booked on another phone).
-- **Unit tests** for the booking logic (`test/booking_logic_test.dart`):
-  success / 409-slot-taken / generic-error paths + model parsing.
+It's small and there's nothing hidden: a screen reads its provider, calls a method,
+and `notifyListeners()` triggers the rebuild. That makes it easy to walk through and
+explain line by line, which matters more here than the extra structure Bloc or
+Riverpod would bring to an app this size.
 
-## What I cut and why
+## What I attempted from the bonus list
 
-- **No persistent login / secure storage** — user select is a single tap (brief
-  says keep auth light). The selected id is held in memory as `X-User-Id`.
-- **No offline cache** — every screen reads live; polling keeps slots fresh.
-  An offline read cache for My Bookings was a listed bonus I deprioritised behind
-  live updates + tests.
-- **Date passed via `extra`** in go_router (not a deep-linkable id) — fine for the
-  in-app flow; a production app would use `/venues/:id`.
+- Live slot updates by polling, so a slot flips to booked on another device.
+- Unit tests for the booking logic in `test/booking_logic_test.dart` (the success,
+  409-already-taken, and generic-error paths, plus slot parsing).
 
-## What I'd do with one more day
+I also added persistent login on top of the brief, since it made the demo smoother.
 
-- Offline read cache for My Bookings (bonus #2 I skipped).
-- WebSocket push instead of polling.
-- Filter slots by time of day; richer venue detail (images, pricing).
-- Widget/integration test for the full book→conflict→refresh flow.
+## What I cut, and why
 
-## AI usage note
+- No offline cache. Every screen reads live data and polling keeps it fresh. An
+  offline cache for My Bookings was on the bonus list but I put live updates and
+  tests ahead of it.
+- No real SMS. The OTP is returned by the API and shown in the app. Wiring a
+  provider like Twilio wasn't worth the time for a demo.
+- Venue detail gets its `Venue` through go_router's `extra` rather than a
+  `/venues/:id` route. Fine for navigating inside the app; a real app would use an
+  id so the route is deep-linkable.
 
-AI scaffolded the layered structure, providers, and screens. **One thing it got
-wrong that I caught:** the backend initially returned slot dates as full UTC
-timestamps, which (under IST) shifted the day backward and broke date matching
-between the grid and the API. I diagnosed it from the `My Bookings` payload and
-fixed it server-side with a Postgres `DATE` type parser so dates stay plain
-`yyyy-MM-dd`, matching the client's `date` query param exactly.
+## With one more day
+
+- Offline read cache for My Bookings.
+- Swap polling for a websocket so updates are instant instead of every few seconds.
+- Filter slots by time of day, and a richer venue page (photos, pricing).
+- A widget/integration test for the full book → conflict → refresh path.
+
+## Where I used AI, and what it got wrong
+
+I used AI to scaffold the layered structure, the providers, and the screens, then
+went through and adjusted things by hand. The one bug it introduced that I had to
+catch: the backend was returning slot dates as full UTC timestamps. In IST that
+pushed each date back by a day, so the dates coming back didn't line up with the
+date I was sending in the query. I spotted it in the My Bookings response and fixed
+it on the server by parsing Postgres `DATE` columns as plain `yyyy-MM-dd` strings,
+which is what the app sends and expects.
