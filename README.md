@@ -4,6 +4,7 @@ A mini app for booking sports slots (badminton courts / turf grounds). Browse
 venues, view hourly slots for a date, and book — with the guarantee that a slot
 can never be double-booked.
 
+- 🎥 **Demo video:** https://drive.google.com/file/d/1XfqAvtvzvQH9DuancTwhB0CpkkxDD1jU/view?usp=drive_link
 - **State management:** Provider (`ChangeNotifier`)
 - **Navigation:** go_router
 - **Backend:** Node + Express + Postgres, live at `https://venuebackend.vercel.app`
