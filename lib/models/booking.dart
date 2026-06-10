@@ -22,6 +22,16 @@ class Booking {
 
   bool get isActive => status == 'booked';
 
+  /// When this booking's slot starts, from its date + hour.
+  DateTime get startsAt => DateTime.parse(date).add(Duration(hours: startHour));
+
+  /// True once the slot's start time has passed.
+  bool get isPast => startsAt.isBefore(DateTime.now());
+
+  /// Upcoming = still active and not yet started. Everything else (already
+  /// started/finished, or cancelled) is treated as past for the tabs.
+  bool get isUpcoming => isActive && !isPast;
+
   /// "14:00 – 15:00"
   String get timeLabel {
     String hh(int h) => '${h.toString().padLeft(2, '0')}:00';
